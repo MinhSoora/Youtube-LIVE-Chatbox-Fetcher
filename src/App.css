@@ -1,0 +1,108 @@
+:root{
+  --ink:#F3F1FF;
+  --ink-dim:#ACA8CB;
+  --violet:#7C5CF6;
+  --violet-2:#9B8CFB;
+  --cyan:#4FD8EA;
+  --err:#FF8383;
+}
+*{box-sizing:border-box;}
+html,body,#root{
+  height:100%; margin:0; background:transparent;
+  font-family:'Inter',system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+.stage{ height:100%; display:flex; align-items:center; justify-content:center; padding:24px; }
+
+/* ---------- Idle state: a single image, nothing else ---------- */
+.idle-img{
+  position:fixed; inset:0; width:100vw; height:100vh;
+  object-fit:contain; object-position:center; display:block;
+}
+
+/* ---------- Text-only panel (no card/popup) ---------- */
+.panel{
+  width:min(480px,92vw);
+  text-align:center;
+  color:var(--ink);
+}
+
+/* Viewport giữ chỗ cố định để text trượt lên/xuống bên trong, không làm layout nhảy */
+.status-viewport{
+  position:relative;
+  min-height:3.6em;
+  overflow:hidden;
+}
+
+.status{
+  position:absolute;
+  inset:0;
+  margin:0;
+  font-size:1.08rem;
+  font-weight:600;
+  line-height:1.6;
+  letter-spacing:0.01em;
+
+  /* Gradient chạy liên tục trên chữ */
+  background-image:linear-gradient(90deg, var(--violet), var(--cyan), var(--violet-2), var(--violet));
+  background-size:300% 100%;
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+  -webkit-text-fill-color:transparent;
+  animation:statusGradient 5s linear infinite;
+  filter:drop-shadow(0 1px 8px rgba(6,4,24,0.55));
+
+  transform:translateY(0);
+  opacity:1;
+  transition:transform .5s cubic-bezier(.4,0,.2,1), opacity .4s ease;
+}
+.status.is-error{
+  background-image:linear-gradient(90deg, var(--err), #FF5A5A, #FFB4B4, var(--err));
+}
+/* Trạng thái khởi tạo trước khi trượt vào — không transition để nhảy thẳng ra ngoài khung */
+.status.enter{
+  transform:translateY(115%);
+  opacity:0;
+  transition:none;
+}
+/* Trạng thái trượt ra khi bị thay thế */
+.status.leave{
+  transform:translateY(-115%);
+  opacity:0;
+}
+@keyframes statusGradient{
+  0%{ background-position:0% 50%; }
+  100%{ background-position:300% 50%; }
+}
+
+.example{
+  margin-top:10px;
+  font-size:0.82rem; color:var(--ink-dim); max-height:0; opacity:0; overflow:hidden;
+  transition:max-height .5s ease, opacity .5s ease; word-break:break-all;
+  text-shadow:0 1px 6px rgba(0,0,0,0.6);
+}
+.example.show{ max-height:3.2em; opacity:1; }
+
+.obs-warning{
+  margin-top:12px;
+  color:#FFD98A; font-size:0.8rem; line-height:1.5;
+  text-shadow:0 1px 6px rgba(0,0,0,0.6);
+}
+
+.log-toggle{
+  display:inline-flex; align-items:center; gap:6px; background:none; border:none;
+  color:var(--ink-dim); font-family:'Inter',sans-serif; font-size:0.78rem; cursor:pointer;
+  padding:4px 2px; margin-top:12px; text-decoration:underline; text-underline-offset:2px;
+}
+
+.log{
+  margin:8px 0 0; text-align:left;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:0.72rem; line-height:1.6; color:#FFB4B4; max-height:0; opacity:0; overflow:auto;
+  transition:max-height .3s ease, opacity .3s ease;
+}
+.log.open{ max-height:150px; opacity:1; }
+
+@media (prefers-reduced-motion: reduce){
+  *{ animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important; }
+}

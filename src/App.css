@@ -26,6 +26,34 @@ html,body,#root{
   color:var(--ink);
 }
 
+/* ---------- Avatar kênh quay vòng liên tục khi đang chờ / kiểm tra livestream ---------- */
+.avatar-wrap{
+  display:flex;
+  justify-content:center;
+  margin-bottom:16px;
+}
+.avatar-img,
+.avatar-placeholder{
+  width:76px;
+  height:76px;
+  border-radius:50%;
+  border:3px solid rgba(124,92,246,0.55);
+  box-shadow:0 4px 18px rgba(0,0,0,0.45);
+  animation:avatarSpin 2.2s linear infinite;
+}
+.avatar-img{
+  object-fit:cover;
+  background:#0b0f1f;
+  display:block;
+}
+.avatar-placeholder{
+  background:radial-gradient(circle at 30% 30%, rgba(124,92,246,0.4), rgba(5,7,16,0.95));
+}
+@keyframes avatarSpin{
+  from{ transform:rotate(0deg); }
+  to{ transform:rotate(360deg); }
+}
+
 /* Viewport giữ chỗ cố định để text trượt lên/xuống bên trong, không làm layout nhảy.
    Đồng thời đóng vai trò lớp nền (plate) phía sau chữ để dễ đọc trên mọi background. */
 .status-viewport{

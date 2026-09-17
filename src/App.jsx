@@ -48,6 +48,19 @@ async function checkLive(channelId, onLog) {
   return null;
 }
 
+async function fetchChannelAvatar(channelId, onLog) {
+  try {
+    const targetUrl = `https://www.youtube.com/channel/${channelId}`;
+    const res = await fetchWithTimeout(PROXY + encodeURIComponent(targetUrl) + '&raw=true');
+    const html = await res.text();
+    const match = html.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i);
+    if (match && match[1]) return match[1];
+  } catch (e) {
+    onLog?.('fetchChannelAvatar: ' + e.message);
+  }
+  return null;
+}
+
 async function detectLanguageByIp() {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 2500);
@@ -70,6 +83,8 @@ export default function App() {
   const [obsWarningVisible, setObsWarningVisible] = useState(false);
   const [logLines, setLogLines] = useState([]);
   const [logOpen, setLogOpen] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState(null);
+  const [pollingLive, setPollingLive] = useState(false);
 
   const languageRef = useRef('en');
   const idRef = useRef(0);
@@ -204,10 +219,12 @@ export default function App() {
         clearInterval(countdownRef.current);
         countdownRef.current = null;
       }
+      setPollingLive(true);
       if (showMsg) pushStatus(t('gettingLive'));
       const vid = await checkLive(chId, appendLog);
       if (cancelled) return;
       if (vid && vid.length === 11) {
+        setPollingLive(false);
         pushStatus(t('redirecting'));
         setTimeout(() => {
           window.location.href = `https://www.youtube.com/live_chat?is_popout=1&v=${vid}`;
@@ -256,6 +273,9 @@ export default function App() {
           return;
         }
         startAfterChannelIsReady(chId);
+        fetchChannelAvatar(chId, appendLog).then((url) => {
+          if (!cancelled && url) setAvatarUrl(url);
+        });
       } catch (e) {
         showError(t('unknownError'), 'start(): ' + e.message);
       }
@@ -287,6 +307,16 @@ export default function App() {
 
       {hasQuery && (
         <div className="panel">
+          {pollingLive && (
+            <div className="avatar-wrap">
+              {avatarUrl ? (
+                <img className="avatar-img" src={avatarUrl} alt="channel avatar" />
+              ) : (
+                <div className="avatar-placeholder" />
+              )}
+            </div>
+          )}
+
           <div className="status-viewport">
             {statusItems.map((item) => (
               <p

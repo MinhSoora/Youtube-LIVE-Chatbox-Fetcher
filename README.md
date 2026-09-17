@@ -13,14 +13,19 @@ Bạn cắm URL overlay vào OBS. Khi bạn **chưa** stream, overlay chỉ hi�
 Thêm tham số `?id=` vào cuối domain overlay, giá trị là kênh YouTube của bạn:
 
 ```
-https://ten-du-an-cua-ban.vercel.app/?id=@ten-kenh-cua-ban
+https://youtube-live-chatbox-fetcher.vercel.app/?id=@ten-kenh-cua-ban
 ```
 
 `id` có thể là:
 | Dạng | Ví dụ |
 |---|---|
 | Handle kênh (có hoặc không có `@`) | `?id=@ten-kenh-cua-ban` hoặc `?id=ten-kenh-cua-ban` |
-| Channel ID (24 ký tự, bắt đầu bằng `UC`) | `?id=UCEcZC1dyDrhWueALsmutdHA` |
+| Channel ID (24 ký tự, bắt đầu bằng `UC`) | `?id=UCEcZC1dyDrhWueALsmutdHA` |  
+
+Ví dụ:  
+```
+https://youtube-live-chatbox-fetcher.vercel.app/?id=MinhSoora
+```
 
 > Không thêm `?id=` → overlay chỉ hiện ảnh tĩnh, không chạy logic tìm kênh/kiểm tra live nào cả (trạng thái nghỉ).
 

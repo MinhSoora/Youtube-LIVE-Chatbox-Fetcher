@@ -14,9 +14,6 @@ html,body,#root{
 }
 .stage{ min-height:100%; display:flex; align-items:center; justify-content:center; padding:24px; }
 
-/* Khi chạy trong OBS (có ?id=...): dồn toàn bộ box trạng thái xuống đáy trang, căn giữa theo chiều ngang */
-.stage-overlay{ align-items:flex-end; }
-
 /* ---------- Trang chính: ảnh + form tạo link ---------- */
 .home{
   width:100%;

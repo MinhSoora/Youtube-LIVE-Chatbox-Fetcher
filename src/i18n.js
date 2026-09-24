@@ -15,7 +15,14 @@ export const translations = {
     timeoutError: 'Yêu cầu mất quá nhiều thời gian và đã bị hủy.',
     unknownError: 'Rất tiếc, đã có lỗi không xác định xảy ra.',
     showLog: 'Xem chi tiết lỗi',
-    hideLog: 'Ẩn chi tiết lỗi'
+    hideLog: 'Ẩn chi tiết lỗi',
+    genPlaceholder: 'Tên kênh YouTube (vd: @MinhSoora)',
+    genButton: 'Tạo link',
+    genInvalid: 'Tên kênh chưa hợp lệ. Hãy nhập @tên-kênh, Channel ID (UC...) hoặc link kênh YouTube.',
+    genResultLabel: 'Link overlay',
+    genCopy: 'Sao chép',
+    genCopied: 'Đã sao chép',
+    genHint: 'Dán link này vào Browser Source trong OBS.'
   },
   en: {
     pageTitle: 'MinhSoora // live chat overlay',
@@ -33,7 +40,14 @@ export const translations = {
     timeoutError: 'The request took too long and was cancelled.',
     unknownError: 'Something went wrong. Please try again.',
     showLog: 'Show error details',
-    hideLog: 'Hide error details'
+    hideLog: 'Hide error details',
+    genPlaceholder: 'YouTube channel name (e.g. @MinhSoora)',
+    genButton: 'Generate link',
+    genInvalid: 'That channel name isn\u2019t valid. Enter @handle, a Channel ID (UC...) or a YouTube channel link.',
+    genResultLabel: 'Overlay link',
+    genCopy: 'Copy',
+    genCopied: 'Copied',
+    genHint: 'Paste this link into a Browser Source in OBS.'
   }
 };
 

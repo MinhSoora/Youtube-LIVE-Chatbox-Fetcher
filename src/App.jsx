@@ -366,7 +366,7 @@ export default function App() {
   };
 
   return (
-    <div className={`stage ${hasQuery ? 'stage-overlay' : ''}`.trim()}>
+    <div className="stage">
       {!hasQuery && (
         <div className="home" lang={lang}>
           <img className="idle-img" alt="MinhSoora" src="https://i.ibb.co/YT1SBMB8/kmc-20260916-153644.png" />

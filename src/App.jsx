@@ -76,8 +76,42 @@ async function detectLanguageByIp() {
   return 'en';
 }
 
+// Đoán ngôn ngữ ban đầu theo trình duyệt (sau đó sẽ được chốt lại bằng IP như cũ)
+function guessLanguage() {
+  return (navigator.language || '').toLowerCase().startsWith('vi') ? 'vi' : 'en';
+}
+
+// Chuẩn hoá thứ người dùng nhập: @handle, handle, Channel ID (UC...) hoặc dán cả link kênh YouTube.
+// Trả về null nếu không hợp lệ.
+function parseChannelInput(raw) {
+  let v = (raw || '').trim();
+  if (!v) return null;
+
+  if (/youtube\.com|youtu\.be/i.test(v)) {
+    try {
+      const u = new URL(/^https?:\/\//i.test(v) ? v : 'https://' + v);
+      const seg = u.pathname.split('/').filter(Boolean).map(decodeURIComponent);
+      if (seg[0] && seg[0].startsWith('@')) v = seg[0];
+      else if ((seg[0] === 'channel' || seg[0] === 'c') && seg[1]) v = seg[1];
+      else return null;
+    } catch {
+      return null;
+    }
+  }
+
+  v = v.replace(/^@+/, '');
+  if (!v || /[\s/?#&=]/.test(v)) return null;
+  return v;
+}
+
+function buildOverlayLink(id) {
+  const base = window.location.origin + window.location.pathname;
+  const prefix = /^UC[0-9A-Za-z_-]{22}$/.test(id) ? '' : '@';
+  return `${base}?id=${prefix}${encodeURIComponent(id)}`;
+}
+
 export default function App() {
-  const [statusItems, setStatusItems] = useState([]);
+  const [status, setStatus] = useState(null); // { html, isError } — chỉ hiện 1 dòng trạng thái hiện tại
   const [exampleText, setExampleText] = useState('');
   const [exampleShow, setExampleShow] = useState(false);
   const [obsWarningVisible, setObsWarningVisible] = useState(false);
@@ -86,8 +120,17 @@ export default function App() {
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [pollingLive, setPollingLive] = useState(false);
 
-  const languageRef = useRef('en');
-  const idRef = useRef(0);
+  // Form tạo link ở trang chính
+  const [channelInput, setChannelInput] = useState('');
+  const [generatedLink, setGeneratedLink] = useState('');
+  const [genError, setGenError] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  const initialLang = useMemo(guessLanguage, []);
+  const [lang, setLang] = useState(initialLang);
+  const languageRef = useRef(initialLang);
+  const linkInputRef = useRef(null);
+  const copyTimerRef = useRef(null);
   const hasStartedRef = useRef(false);
   const countdownRef = useRef(null);
   const exampleRunningRef = useRef(false);
@@ -113,54 +156,15 @@ export default function App() {
     setLogLines((prev) => [...prev, `[${time}] ${line}`]);
   }, []);
 
-  // Đẩy 1 dòng trạng thái mới vào ngăn xếp: dòng cũ chuyển sang "leave" (trượt lên & mờ dần),
-  // dòng mới vào với "enter" rồi sẽ được flip sang trạng thái nghỉ (trượt vào) ở effect bên dưới.
-  const pushStatus = useCallback((html, isError = false) => {
-    const id = ++idRef.current;
-    setStatusItems((prev) => {
-      const leaving = prev.map((item) => (item.phase === 'leave' ? item : { ...item, phase: 'leave' }));
-      return [...leaving, { id, html, isError, phase: 'enter' }];
-    });
+  // Hiện 1 dòng trạng thái — dòng mới thay thế dòng cũ ngay lập tức, không có hiệu ứng trượt.
+  const showStatus = useCallback((html, isError = false) => {
+    setStatus({ html, isError });
   }, []);
 
   const showError = useCallback((html, logLine) => {
-    pushStatus(html, true);
+    showStatus(html, true);
     if (logLine) appendLog(logLine);
-  }, [pushStatus, appendLog]);
-
-  // Điều khiển hiệu ứng slide: flip "enter" -> nghỉ (active) ở khung hình kế tiếp;
-  // dọn các item "leave" sau khi transition kết thúc.
-  useEffect(() => {
-    let raf = null;
-    const hasEntering = statusItems.some((i) => i.phase === 'enter');
-    if (hasEntering) {
-      raf = requestAnimationFrame(() => {
-        setStatusItems((prev) => {
-          let changed = false;
-          const next = prev.map((item) => {
-            if (item.phase === 'enter') {
-              changed = true;
-              return { ...item, phase: 'active' };
-            }
-            return item;
-          });
-          return changed ? next : prev;
-        });
-      });
-    }
-
-    const leavingIds = statusItems.filter((i) => i.phase === 'leave').map((i) => i.id);
-    const timers = leavingIds.map((id) =>
-      setTimeout(() => {
-        setStatusItems((prev) => prev.filter((p) => p.id !== id));
-      }, 700)
-    );
-
-    return () => {
-      if (raf) cancelAnimationFrame(raf);
-      timers.forEach(clearTimeout);
-    };
-  }, [statusItems]);
+  }, [showStatus, appendLog]);
 
   const showExampleLoop = useCallback(() => {
     if (exampleRunningRef.current) return;
@@ -188,27 +192,44 @@ export default function App() {
     return () => {
       exampleTimersRef.current.forEach(clearTimeout);
       if (countdownRef.current) clearInterval(countdownRef.current);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
     };
   }, []);
 
+  // Trang chính (không có query): chốt ngôn ngữ theo IP cho form tạo link
+  useEffect(() => {
+    if (hasQuery) return;
+    let cancelled = false;
+    detectLanguageByIp().then((detected) => {
+      if (cancelled) return;
+      languageRef.current = detected;
+      setLang(detected);
+      document.documentElement.lang = detected;
+      document.title = translate(detected, 'pageTitle');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [hasQuery]);
+
   // Luồng chính: phát hiện ngôn ngữ -> tìm kênh -> chờ live -> chuyển hướng
   useEffect(() => {
-    if (!hasQuery) return; // idle state — chỉ hiện ảnh, không chạy gì thêm
+    if (!hasQuery) return; // trang chính — chỉ hiện ảnh + form tạo link, không chạy logic tìm live
 
     let cancelled = false;
 
     const startCountdown = (chId, sec) => {
       if (countdownRef.current) clearInterval(countdownRef.current);
       let s = sec;
-      pushStatus(t('streamNotFound', { seconds: s }));
+      showStatus(t('streamNotFound', { seconds: s }));
       countdownRef.current = setInterval(() => {
         s -= 1;
         if (s > 0) {
-          pushStatus(t('streamNotFound', { seconds: s }));
+          showStatus(t('streamNotFound', { seconds: s }));
         } else {
           clearInterval(countdownRef.current);
           countdownRef.current = null;
-          pushStatus(t('retrying'));
+          showStatus(t('retrying'));
           fetchLiveChat(chId, false);
         }
       }, 1000);
@@ -220,12 +241,12 @@ export default function App() {
         countdownRef.current = null;
       }
       setPollingLive(true);
-      if (showMsg) pushStatus(t('gettingLive'));
+      if (showMsg) showStatus(t('gettingLive'));
       const vid = await checkLive(chId, appendLog);
       if (cancelled) return;
       if (vid && vid.length === 11) {
         setPollingLive(false);
-        pushStatus(t('redirecting'));
+        showStatus(t('redirecting'));
         setTimeout(() => {
           window.location.href = `https://www.youtube.com/live_chat?is_popout=1&v=${vid}`;
         }, 600);
@@ -248,7 +269,7 @@ export default function App() {
         }
         window.obsstudio.getStatus((status) => {
           if (status.streaming) fetchLiveChat(chId);
-          else pushStatus(t('waitingForObs'));
+          else showStatus(t('waitingForObs'));
         });
       });
     };
@@ -264,7 +285,7 @@ export default function App() {
       }
 
       try {
-        pushStatus(t('findingChannel'));
+        showStatus(t('findingChannel'));
         const chId = await resolveChannelId(identifier, appendLog);
         if (cancelled) return;
         if (!chId) {
@@ -299,10 +320,97 @@ export default function App() {
 
   const toggleLog = () => setLogOpen((open) => !open);
 
+  const handleChannelInputChange = (e) => {
+    setChannelInput(e.target.value);
+    setGeneratedLink('');
+    setGenError('');
+    setCopied(false);
+  };
+
+  const handleGenerate = (e) => {
+    e.preventDefault();
+    const id = parseChannelInput(channelInput);
+    if (!id) {
+      setGeneratedLink('');
+      setGenError(t('genInvalid'));
+      return;
+    }
+    setGenError('');
+    setCopied(false);
+    setGeneratedLink(buildOverlayLink(id));
+  };
+
+  const handleCopy = async () => {
+    let ok = false;
+    try {
+      await navigator.clipboard.writeText(generatedLink);
+      ok = true;
+    } catch {
+      // Fallback cho môi trường không có Clipboard API
+      const el = linkInputRef.current;
+      if (el) {
+        el.focus();
+        el.select();
+        try {
+          ok = document.execCommand('copy');
+        } catch {
+          ok = false;
+        }
+      }
+    }
+    if (ok) {
+      setCopied(true);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
   return (
-    <div className="stage">
+    <div className={`stage ${hasQuery ? 'stage-overlay' : ''}`.trim()}>
       {!hasQuery && (
-        <img className="idle-img" alt="MinhSoora" src="https://i.ibb.co/YT1SBMB8/kmc-20260916-153644.png" />
+        <div className="home" lang={lang}>
+          <img className="idle-img" alt="MinhSoora" src="https://i.ibb.co/YT1SBMB8/kmc-20260916-153644.png" />
+
+          <form className="gen" onSubmit={handleGenerate}>
+            <div className="gen-row">
+              <input
+                className="gen-input"
+                type="text"
+                value={channelInput}
+                onChange={handleChannelInputChange}
+                placeholder={t('genPlaceholder')}
+                aria-label={t('genPlaceholder')}
+                spellCheck={false}
+                autoCapitalize="off"
+                autoCorrect="off"
+                autoComplete="off"
+              />
+              <button className="gen-btn" type="submit">{t('genButton')}</button>
+            </div>
+
+            {genError && <p className="gen-error">{genError}</p>}
+
+            {generatedLink && (
+              <div className="gen-result">
+                <div className="gen-row">
+                  <input
+                    ref={linkInputRef}
+                    className="gen-input gen-link"
+                    type="text"
+                    readOnly
+                    value={generatedLink}
+                    onFocus={(e) => e.target.select()}
+                    aria-label={t('genResultLabel')}
+                  />
+                  <button className="gen-btn" type="button" onClick={handleCopy}>
+                    {copied ? t('genCopied') : t('genCopy')}
+                  </button>
+                </div>
+                <p className="gen-hint">{t('genHint')}</p>
+              </div>
+            )}
+          </form>
+        </div>
       )}
 
       {hasQuery && (
@@ -317,21 +425,16 @@ export default function App() {
             </div>
           )}
 
-          <div className="status-viewport">
-            {statusItems.map((item) => (
+          {status && (
+            <div className="status-box">
               <p
-                key={item.id}
-                className={[
-                  'status',
-                  item.isError ? 'is-error' : '',
-                  item.phase === 'enter' ? 'enter' : item.phase === 'leave' ? 'leave' : ''
-                ].join(' ').trim()}
-                dangerouslySetInnerHTML={{ __html: item.html }}
+                className={`status ${status.isError ? 'is-error' : ''}`.trim()}
+                dangerouslySetInnerHTML={{ __html: status.html }}
               />
-            ))}
-          </div>
+            </div>
+          )}
 
-          <div className={`example ${exampleShow ? 'show' : ''}`}>{exampleText}</div>
+          {exampleText && <div className={`example ${exampleShow ? 'show' : ''}`}>{exampleText}</div>}
 
           {obsWarningVisible && <div className="obs-warning">{t('obsPermissionWarning')}</div>}
 
